@@ -9,9 +9,20 @@
 import {
   VW, VH, R, D, PLAY_LEFT, PLAY_RIGHT, CEILING_Y, FAIL_Y,
   COLORS, PREVIEW_DOT_SPACING, PREVIEW_MAX_BOUNCES, SHOOTER_X, SHOOTER_Y,
+  POP_MS,
 } from '../game/config.js';
+import { SPLITTER } from '../fx/particles.js';
 
 const SPRITE_PAD = 6;   // Platz für Glanzrand innerhalb der Sprite-Kachel
+const SPARK_SIZE = 28;  // Kantenlänge der Funken-Kachel in virtuellen Einheiten
+const OVERSCAN = 20;    // Reserve am Rand für den Screenshake
+
+// Kristallsplitter werden in 16 fertig gedrehten Bildern je Farbe vorgebacken.
+// Eine Drehung zur Laufzeit kostet pro Partikel ein save/rotate/restore, und
+// das ist bei 300 Partikeln um Größenordnungen teurer als das Zeichnen selbst
+// (gemessen: 24 ms gegenüber 4 ms je Bild).
+const SHARD_SIZE = 26;
+const SHARD_FRAMES = 16;
 
 export class Renderer {
   /** @param {HTMLCanvasElement} canvas */
@@ -61,7 +72,12 @@ export class Renderer {
     };
   }
 
-  begin() {
+  /**
+   * @param {{x:number,y:number}} shake Kameraversatz in virtuellen Einheiten.
+   * Der Beschnitt bleibt im Bildschirmraum stehen, nur der Inhalt wackelt —
+   * deshalb überzeichnen Hintergrund und Overlays den Rand um OVERSCAN.
+   */
+  begin(shake = null) {
     const ctx = this.ctx;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.fillStyle = '#07050f';
@@ -71,6 +87,7 @@ export class Renderer {
     ctx.beginPath();
     ctx.rect(0, 0, VW, VH);
     ctx.clip();
+    if (shake && (shake.x || shake.y)) ctx.translate(shake.x, shake.y);
   }
 
   end() {
@@ -84,7 +101,68 @@ export class Renderer {
     this.sprites.clear();
     for (let i = 0; i < COLORS.length; i++) {
       this.sprites.set(`gem${i}`, this._bakeGem(COLORS[i]));
+      this.sprites.set(`funke${i}`, this._bakeSpark(COLORS[i]));
+      this.sprites.set(`splitter${i}`, this._bakeShards(COLORS[i]));
     }
+    this.shardFrame = Math.max(4, Math.ceil(SHARD_SIZE * this.spriteScale));
+  }
+
+  /** Bilderstreifen mit SHARD_FRAMES fertig gedrehten Kristallsplittern. */
+  _bakeShards(color) {
+    const k = Math.max(4, Math.ceil(SHARD_SIZE * this.spriteScale));
+    const cv = document.createElement('canvas');
+    cv.width = k * SHARD_FRAMES;
+    cv.height = k;
+    const g = cv.getContext('2d');
+    const scale = k / SHARD_SIZE;
+    const h = SHARD_SIZE / 2;
+
+    for (let f = 0; f < SHARD_FRAMES; f++) {
+      g.setTransform(scale, 0, 0, scale, f * k, 0);
+      g.save();
+      g.translate(h, h);
+      g.rotate((f / SHARD_FRAMES) * Math.PI * 2);
+
+      const grad = g.createLinearGradient(0, -h * 0.8, 0, h * 0.8);
+      grad.addColorStop(0, color.light);
+      grad.addColorStop(0.55, color.base);
+      grad.addColorStop(1, color.dark);
+      g.fillStyle = grad;
+      g.beginPath();
+      g.moveTo(0, -h * 0.78);
+      g.lineTo(h * 0.42, -h * 0.05);
+      g.lineTo(0, h * 0.7);
+      g.lineTo(-h * 0.34, h * 0.02);
+      g.closePath();
+      g.fill();
+
+      g.strokeStyle = hexA(color.light, 0.8);
+      g.lineWidth = 1.2;
+      g.stroke();
+      g.restore();
+    }
+    return cv;
+  }
+
+  /** Weicher Glutpunkt, additiv gezeichnet — die Grundform aller Partikel. */
+  _bakeSpark(color) {
+    const sv = SPARK_SIZE;
+    const px = Math.max(8, Math.ceil(sv * this.spriteScale));
+    const cv = document.createElement('canvas');
+    cv.width = px; cv.height = px;
+    const g = cv.getContext('2d');
+    g.setTransform(px / sv, 0, 0, px / sv, 0, 0);
+    const c = sv / 2;
+    const grad = g.createRadialGradient(c, c, 0, c, c, c);
+    grad.addColorStop(0, 'rgba(255,255,255,0.95)');
+    grad.addColorStop(0.32, hexA(color.light, 0.85));
+    grad.addColorStop(0.62, hexA(color.base, 0.5));
+    grad.addColorStop(1, hexA(color.base, 0));
+    g.fillStyle = grad;
+    g.beginPath();
+    g.arc(c, c, c, 0, Math.PI * 2);
+    g.fill();
+    return cv;
   }
 
   _spriteSizeVirtual() { return D + SPRITE_PAD * 2; }
@@ -172,7 +250,7 @@ export class Renderer {
   }
 
   /** Stein an virtueller Position zeichnen. */
-  drawStone(color, x, y, { alpha = 1, scale = 1, rot = 0 } = {}) {
+  drawStone(color, x, y, { alpha = 1, scale = 1, rot = 0, sx = 1, sy = 1 } = {}) {
     const sprite = this.sprites.get(`gem${color}`);
     if (!sprite) return;
     const ctx = this.ctx;
@@ -181,9 +259,71 @@ export class Renderer {
     ctx.globalAlpha = alpha;
     ctx.translate(x, y);
     if (rot) ctx.rotate(rot);
-    if (scale !== 1) ctx.scale(scale, scale);
+    const kx = scale * sx, ky = scale * sy;
+    if (kx !== 1 || ky !== 1) ctx.scale(kx, ky);
     ctx.drawImage(sprite, -sv / 2, -sv / 2, sv, sv);
     ctx.restore();
+  }
+
+  /**
+   * Partikel. Beide Durchgänge kommen ohne Transformation je Partikel aus:
+   * Funken sind runde Glutpunkte (additiv), Splitter greifen sich das passende
+   * vorgedrehte Bild aus dem Streifen. Ein drawImage pro Partikel, sonst nichts.
+   */
+  drawParticles(p) {
+    const ctx = this.ctx;
+    const n = p.count;
+    if (!n) return;
+
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    // Weiche Glutpunkte und kleine Splitter brauchen keine Interpolation beim
+    // Herunterskalieren — das spart rund ein Viertel der Zeichenzeit.
+    ctx.imageSmoothingEnabled = false;
+    for (let i = 0; i < n; i++) {
+      if (p.kind[i] === SPLITTER) continue;
+      const sprite = this.sprites.get(`funke${p.color[i]}`);
+      if (!sprite) continue;
+      const k = p.life[i] / p.ttl[i];
+      const s = p.size[i] * (0.35 + k * 0.9);
+      ctx.globalAlpha = k * k;
+      ctx.drawImage(sprite, p.x[i] - s / 2, p.y[i] - s / 2, s, s);
+    }
+    ctx.restore();
+
+    const fw = this.shardFrame;
+    ctx.save();
+    ctx.imageSmoothingEnabled = false;
+    for (let i = 0; i < n; i++) {
+      if (p.kind[i] !== SPLITTER) continue;
+      const atlas = this.sprites.get(`splitter${p.color[i]}`);
+      if (!atlas) continue;
+      const k = p.life[i] / p.ttl[i];
+      const s = p.size[i] * (0.6 + k * 0.6);
+      // Drehwinkel auf eines der vorgebackenen Bilder abbilden
+      let f = Math.floor((p.rot[i] / (Math.PI * 2)) * SHARD_FRAMES) % SHARD_FRAMES;
+      if (f < 0) f += SHARD_FRAMES;
+      ctx.globalAlpha = Math.min(1, k * 1.6);
+      ctx.drawImage(atlas, f * fw, 0, fw, fw, p.x[i] - s / 2, p.y[i] - s / 2, s, s);
+    }
+    ctx.restore();
+  }
+
+  /** Platzende Steine: Squash-Stretch über 120 ms. */
+  drawPops(juice) {
+    const dur = POP_MS / 1000;
+    for (let i = 0; i < juice.popCount; i++) {
+      const p = juice.pops[i];
+      const t = Math.min(1, p.t / dur);
+      const wobble = Math.sin(t * Math.PI * 2) * 0.38;
+      const size = (1 - t) * (1 + 0.55 * Math.sin(t * Math.PI));
+      this.drawStone(p.color, p.x, p.y, {
+        alpha: 1 - t * t,
+        scale: size,
+        sx: 1 + wobble,
+        sy: 1 - wobble,
+      });
+    }
   }
 
   // --- Hintergrund ----------------------------------------------------------
@@ -191,7 +331,8 @@ export class Renderer {
   drawBackground(biome) {
     const ctx = this.ctx;
     if (!this.bg || this.bgKey !== biome.key) this._bakeBackground(biome);
-    ctx.drawImage(this.bg, 0, 0, VW, VH);
+    // Etwas größer als das Spielfeld, damit beim Screenshake kein Rand aufblitzt.
+    ctx.drawImage(this.bg, -OVERSCAN, -OVERSCAN, VW + OVERSCAN * 2, VH + OVERSCAN * 2);
   }
 
   _bakeBackground(biome) {
@@ -351,7 +492,7 @@ export class Renderer {
    * Glutkegel, der vom Abschusspunkt (360, 1150) genau entlang der Zielachse
    * austritt; dort liegt auch der geladene Stein.
    */
-  drawDragon(aimDeg, charge = 0) {
+  drawDragon(aimDeg, charge = 0, recoil = 0) {
     const ctx = this.ctx;
     const a = aimDeg * Math.PI / 180;
 
@@ -394,6 +535,8 @@ export class Renderer {
 
     // --- Kopf (lehnt anteilig) ----------------------------------------------
     ctx.save();
+    // Rückstoß: der Kopf fährt entgegen der Schussrichtung zurück.
+    if (recoil > 0) ctx.translate(-Math.sin(a) * recoil * 13, Math.cos(a) * recoil * 13);
     ctx.rotate(a * 0.4);
 
     ctx.fillStyle = '#ded0ff';
@@ -474,6 +617,7 @@ export class Renderer {
 
     // --- Glutkegel exakt in Zielrichtung ------------------------------------
     ctx.save();
+    if (recoil > 0) ctx.translate(-Math.sin(a) * recoil * 13, Math.cos(a) * recoil * 13);
     ctx.rotate(a);
     const jet = ctx.createLinearGradient(0, 12, 0, -66);
     jet.addColorStop(0, `rgba(255,214,120,${0.55 + charge * 0.35})`);
@@ -530,7 +674,7 @@ export class Renderer {
     const ctx = this.ctx;
     ctx.save();
     ctx.fillStyle = color;
-    ctx.fillRect(0, 0, VW, VH);
+    ctx.fillRect(-OVERSCAN, -OVERSCAN, VW + OVERSCAN * 2, VH + OVERSCAN * 2);
     ctx.restore();
   }
 }

@@ -8,7 +8,7 @@
  */
 import {
   R, PLAY_LEFT, PLAY_RIGHT, CEILING_Y, VH,
-  MAX_SUBSTEP, COLLIDE_DIST, GRAVITY, DROP_DRIFT, DROP_SPIN, DROP_KILL_Y,
+  MAX_SUBSTEP, COLLIDE_DIST, GRAVITY, DROP_DRIFT, DROP_SPIN, HOARD_Y,
 } from './config.js';
 
 const MIN_X = PLAY_LEFT + R;
@@ -173,15 +173,19 @@ export function pointAtDistance(points, dist) {
 // --- Abstürzende Steine -------------------------------------------------------
 
 /**
- * Schwerkraft, leichte Zufallsdrift in x, Rotation.
- * Die Liste wird bewusst simpel gehalten; das Object-Pooling der Partikel
- * kommt in Meilenstein 3.
+ * Schwerkraft, leichte Zufallsdrift in x, Rotation. Unten versinken die Steine
+ * im Hort und lösen dort den Funkenregen aus.
  */
 export class FallingStones {
-  constructor(rng = Math.random) {
+  /**
+   * @param {()=>number} rng
+   * @param {(x:number,y:number,color:number)=>void} onHoard Aufschlag im Hort
+   */
+  constructor(rng = Math.random, onHoard = null) {
     /** @type {Array<{x:number,y:number,vx:number,vy:number,rot:number,spin:number,color:number,kind:string}>} */
     this.items = [];
     this.rng = rng;
+    this.onHoard = onHoard;
   }
 
   spawn(x, y, color, kind = 'gem', order = 0) {
@@ -205,7 +209,11 @@ export class FallingStones {
       // An den Seitenwänden abprallen, damit nichts seitlich davonsegelt.
       if (s.x < MIN_X) { s.x = MIN_X; s.vx = Math.abs(s.vx) * 0.6; }
       if (s.x > MAX_X) { s.x = MAX_X; s.vx = -Math.abs(s.vx) * 0.6; }
-      if (s.y > DROP_KILL_Y) this.items.splice(i, 1);
+      // Im Hort am unteren Rand versinken die Steine — mit Funkenregen.
+      if (s.y > HOARD_Y) {
+        if (this.onHoard) this.onHoard(s.x, HOARD_Y, s.color);
+        this.items.splice(i, 1);
+      }
     }
   }
 

@@ -26,12 +26,16 @@ python3 -m http.server 8000
 | Loslassen in den unteren 15 % | bricht den Schuss ab |
 | Kurzer Tipp in die obere Hälfte | zielt dorthin und schießt sofort |
 | Tipp auf Drache oder Warteschlange | tauscht aktuellen und nächsten Stein |
+| Tipp auf den Lautsprecher oben rechts | schaltet den Ton stumm (wird gemerkt) |
 
 Maus funktioniert genauso (Pointer Events).
 
-## Stand: Meilenstein 1 — vollständig spielbar
+Ton startet erst nach der ersten Berührung — so verlangen es die
+Autoplay-Regeln der Browser.
 
-Umgesetzt:
+## Stand: Meilensteine 1 bis 3
+
+### Meilenstein 1 — Kern
 
 - **Hex-Raster**, versetzte Reihen, r = 32, gerade Reihen 11 / ungerade 10
   Steine, Reihenhöhe r·√3 = 55,4256. Beim Nachschieben rutscht das ganze Feld
@@ -50,16 +54,45 @@ Umgesetzt:
   ohne Zwischenbildschirm.
 - **Farbfehlsichtigkeit**: jede Farbe trägt ein eigenes Symbol
   (Kreis, Raute, Dreieck, Stern, Welle).
-- Vorgezogen aus Meilenstein 2: **Flugbahn-Vorschau** (gepunktet, genau eine
-  Wandbande, Punktabstand 24 px, ausblendend) mit Geisterblase auf dem
-  Zielfeld, **Warteschlange** mit Tauschen, sowie die komplette Steuerung.
-  Vorschau und Schuss laufen durch *dieselbe* Funktion `traceShot`, können
-  also gar nicht auseinanderlaufen.
 - 10 feste Level für die Kristallhöhle in `data/levels.json`.
 
-Noch offen (Meilensteine 3–6): Juice (Partikel, Screenshake, Hitstop,
-Weißblitz), prozedurales Audio, Hindernisse, Power-ups, Boss, Weltkarte,
-endloser Schlund, Meta.
+### Meilenstein 2 — Steuerung, Vorschau, Warteschlange
+
+- Ziehen an beliebiger Stelle, Winkel = eingefrorener Winkel + dx · 0,18°/px,
+  Schuss beim Loslassen, Abbruch in den unteren 15 %, kurzer Tipp oben zielt
+  dorthin und feuert sofort.
+- **Flugbahn-Vorschau**: gepunktet, genau eine Wandbande, Punktabstand 24 px,
+  nach hinten ausblendend, mit halbtransparenter Geisterblase auf dem
+  errechneten Zielfeld. Vorschau und Schuss laufen durch *dieselbe* Funktion
+  `traceShot` — sie können gar nicht auseinanderlaufen.
+- Warteschlange aus aktuellem und nächstem Stein, Tippen auf den Drachen
+  tauscht beide.
+- Fehlschuss-Reihe mit 300-ms-Animation und Rumpeln.
+
+### Meilenstein 3 — Juice und Audio
+
+- **Platzen**: Squash-Stretch über 120 ms, 8–14 Partikel in Steinfarbe, radial
+  mit Reibung.
+- **Screenshake**: Amplitude = min(2 + Kombogröße · 1,2 ; 14) px, Abklingen
+  über 250 ms. Als Kombogröße zählt, was der Schuss insgesamt entfernt hat —
+  geplatzte plus abgestürzte Steine.
+- **Hitstop**: 70 ms Zeitlupe ab 6 abstürzenden Steinen, in echter Zeit
+  gemessen, damit sich die Verlangsamung nicht selbst verlangsamt.
+- **Absturz**: Weißblitz-Overlay bei 15 % Deckkraft, Funkenregen in den Hort
+  am unteren Rand.
+- **Object-Pooling**: fest vorbelegte typisierte Arrays, Swap-Remove statt
+  splice. Gemessen 60 fps bei über 300 gleichzeitigen Partikeln — und das im
+  reinen Software-Rasterizer des Testbrowsers, also mit Reserve auf echter
+  Hardware.
+- **Audio** komplett prozedural über die Web Audio API, keine Dateien:
+  Platz-Blips steigen je Treffer eine Stufe in der pentatonischen Leiter
+  (C D E G A) und fallen nach 1,5 s Pause zurück; Absturz als abfallendes
+  Glissando mit Rauschimpuls; Hintergrundmusik je Biom mit eigener Tonart, ab
+  Kombo 3 kommt eine Instrumentenspur dazu. Stummschalter oben rechts.
+- `prefers-reduced-motion` dämpft Screenshake und lässt den Weißblitz weg.
+
+Noch offen (Meilensteine 4–6): Hindernisse, Level-System über alle Biome,
+Power-ups, Boss, Weltkarte, endloser Schlund, Meta.
 
 ## Dateien
 
@@ -67,9 +100,10 @@ endloser Schlund, Meta.
 index.html
 css/style.css
 js/main.js              Bootstrap
-js/core/loop.js         fester Physik-Zeitschritt + rAF
+js/core/loop.js         fester Physik-Zeitschritt + rAF + Hitstop
 js/core/input.js        Pointer -> virtuelle Koordinaten
-js/core/render.js       Canvas-2D, vorgebackene Stein-Sprites
+js/core/render.js       Canvas-2D, vorgebackene Sprites
+js/core/audio.js        prozedurale Klänge und Biom-Musik
 js/game/config.js       alle Kennwerte der Spezifikation
 js/game/grid.js         Hex-Raster
 js/game/physics.js      traceShot (Schuss + Vorschau), Absturz
@@ -77,12 +111,15 @@ js/game/match.js        Farbgruppen, Erreichbarkeit
 js/game/shooter.js      Zielwinkel, Warteschlange, Nachschubfarbe
 js/game/levels.js       Laden und Bauen der Layouts
 js/game/game.js         Spielablauf und Regeln
-js/ui/hud.js            Punkte, Kombo, Fehlschussanzeige
+js/fx/particles.js      Partikel-Pool (typisierte Arrays)
+js/fx/shake.js          Screenshake
+js/fx/juice.js          Regie: Platzen, Absturz, Hitstop, Blitz
+js/ui/hud.js            Punkte, Kombo, Fehlschussanzeige, Ton
 data/levels.json
 ```
 
-`js/core/audio.js`, `js/game/{powerups,boss}.js`, `js/fx/*` und
-`js/ui/{screens,map}.js` kommen mit den jeweiligen Meilensteinen dazu.
+`js/game/{powerups,boss}.js` und `js/ui/{screens,map}.js` kommen mit den
+Meilensteinen 4 und 5 dazu.
 
 Alle Logik rechnet in virtuellen Einheiten (720 × 1280) und wird uniform auf
 jede Bildschirmgröße skaliert (Letterbox).

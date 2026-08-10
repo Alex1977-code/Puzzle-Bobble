@@ -8,6 +8,9 @@ import {
 
 const QUEUE_X = SHOOTER_X + 264;   // rechts neben dem Drachen
 const QUEUE_Y = SHOOTER_Y - 24;
+const MUTE_X = VW - 34;            // Lautsprecher in der Deckenleiste
+const MUTE_Y = 28;
+const MUTE_R = 30;
 
 export class Hud {
   constructor(renderer) {
@@ -87,6 +90,8 @@ export class Hud {
       r.drawStone(s.current.color, SHOOTER_X, SHOOTER_Y, { scale: 1 });
     }
 
+    this.drawMute(game.audio.muted);
+
     // Tausch-Hinweis
     if (s.swapFlash > 0) {
       const ctx = r.ctx;
@@ -99,6 +104,50 @@ export class Hud {
       ctx.stroke();
       ctx.restore();
     }
+  }
+
+  /** Lautsprecher-Schalter: prozedural gezeichnet, kein Zeichensatz-Glyph. */
+  drawMute(muted) {
+    const ctx = this.r.ctx;
+    ctx.save();
+    ctx.translate(MUTE_X, MUTE_Y);
+    ctx.globalAlpha = muted ? 0.45 : 0.85;
+    ctx.fillStyle = '#c9b8ff';
+    ctx.strokeStyle = '#c9b8ff';
+    ctx.lineWidth = 2.2;
+    ctx.lineCap = 'round';
+
+    // Membran
+    ctx.beginPath();
+    ctx.moveTo(-9, -4);
+    ctx.lineTo(-4, -4);
+    ctx.lineTo(2, -10);
+    ctx.lineTo(2, 10);
+    ctx.lineTo(-4, 4);
+    ctx.lineTo(-9, 4);
+    ctx.closePath();
+    ctx.fill();
+
+    if (muted) {
+      ctx.beginPath();
+      ctx.moveTo(7, -6);
+      ctx.lineTo(15, 6);
+      ctx.moveTo(15, -6);
+      ctx.lineTo(7, 6);
+      ctx.stroke();
+    } else {
+      for (let i = 1; i <= 2; i++) {
+        ctx.beginPath();
+        ctx.arc(2, 0, 4 + i * 4.5, -0.9, 0.9);
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
+  }
+
+  /** Trefferfläche des Lautsprechers. */
+  static isOnMute(x, y) {
+    return Math.hypot(x - MUTE_X, y - MUTE_Y) < MUTE_R;
   }
 
   /** Trefferfläche der Schleuder (Tippen tauscht die Warteschlange). */

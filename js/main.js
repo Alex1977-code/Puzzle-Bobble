@@ -26,6 +26,7 @@ async function boot() {
     update: (dt) => game.update(dt),
     render: () => game.render(),
   });
+  game.loop = loop;   // für das Hitstop beim Absturz
 
   let resizeTimer = 0;
   const onResize = () => {
@@ -40,8 +41,8 @@ async function boot() {
 
   // Bei verstecktem Tab anhalten — spart Akku und verhindert Zeitsprünge.
   document.addEventListener('visibilitychange', () => {
-    if (document.hidden) loop.stop();
-    else loop.start();
+    if (document.hidden) { loop.stop(); game.audio.suspend(); }
+    else { loop.start(); game.audio.resume(); }
   });
 
   loop.start();

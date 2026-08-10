@@ -20,7 +20,9 @@ export class Loop {
     this.running = false;
     this.acc = 0;
     this.last = 0;
-    this.timeScale = 1;       // wird ab Meilenstein 3 fürs Hitstop genutzt
+    this.timeScale = 1;
+    this._hitstopLeft = 0;    // läuft in echter Zeit, nicht in Spielzeit
+    this._hitstopScale = 1;
     this.fps = 60;
     this._fpsAcc = 0;
     this._fpsFrames = 0;
@@ -39,6 +41,15 @@ export class Loop {
     this.running = false;
   }
 
+  /**
+   * Zeitlupe für eine feste Dauer in *echten* Sekunden — sonst würde sich die
+   * Verlangsamung selbst verlangsamen und nie enden.
+   */
+  hitstop(seconds, scale = 0.14) {
+    this._hitstopLeft = Math.max(this._hitstopLeft, seconds);
+    this._hitstopScale = scale;
+  }
+
   _frame(now) {
     if (!this.running) return;
     requestAnimationFrame(this._frame);
@@ -54,6 +65,13 @@ export class Loop {
       this.fps = this._fpsFrames / this._fpsAcc;
       this._fpsAcc = 0;
       this._fpsFrames = 0;
+    }
+
+    if (this._hitstopLeft > 0) {
+      this._hitstopLeft -= frameTime;
+      this.timeScale = this._hitstopLeft > 0 ? this._hitstopScale : 1;
+    } else {
+      this.timeScale = 1;
     }
 
     this.acc += frameTime * this.timeScale;

@@ -55,7 +55,6 @@ export const RESTART_MS = 350;             // Scheitern -> neuer Versuch, < 400 
 export const GRAVITY = 2200;               // px/s^2
 export const DROP_DRIFT = 70;              // maximale Zufallsdrift in x, px/s
 export const DROP_SPIN = 5.5;              // maximale Drehgeschwindigkeit, rad/s
-export const DROP_KILL_Y = VH + 120;
 
 // --- Farben ------------------------------------------------------------------
 // Jede Farbe trägt zusätzlich ein eigenes Symbol (Farbfehlsichtigkeit).
@@ -68,11 +67,40 @@ export const COLORS = [
 ];
 export const MAX_COLORS = COLORS.length;
 
-// --- Biome (Hintergründe; Inhalte folgen in Meilenstein 4) -------------------
+// --- Juice (Meilenstein 3) ---------------------------------------------------
+export const POP_MS = 120;                 // Squash-Stretch beim Platzen
+export const POP_PARTICLES_MIN = 8;
+export const POP_PARTICLES_MAX = 14;
+export const PARTICLE_CAPACITY = 800;      // Object-Pool, fest vorbelegt
+
+export const SHAKE_BASE = 2;               // Amplitude = min(2 + Größe * 1,2 ; 14)
+export const SHAKE_PER_STONE = 1.2;
+export const SHAKE_MAX = 14;
+export const SHAKE_MS = 250;
+
+export const HITSTOP_MS = 70;              // Zeitlupe ab 6 abstürzenden Steinen
+export const HITSTOP_MIN_DROPS = 6;
+export const HITSTOP_SCALE = 0.14;
+
+export const FLASH_ALPHA = 0.15;           // Weißblitz beim Absturz
+export const FLASH_MS = 150;
+
+export const HOARD_Y = VH - 70;            // hier versinken die Steine im Hort
+
+// --- Audio (Meilenstein 3) ---------------------------------------------------
+export const PENTATONIC = [0, 2, 4, 7, 9]; // C D E G A in Halbtonschritten
+export const LADDER_BASE_HZ = 523.25;      // C5
+export const LADDER_MAX_STEP = 19;         // knapp vier Oktaven, dann Deckel
+export const LADDER_RESET_MS = 1500;       // Pause, nach der die Leiter zurückfällt
+export const POP_STAGGER_S = 0.035;        // Abstand der Blips innerhalb einer Gruppe
+export const MUSIC_BPM = 96;
+export const COMBO_LAYER_AT = 3;           // ab Kombo 3 eine Instrumentenspur mehr
+
+// --- Biome (Hintergründe und Tonart; Inhalte folgen in Meilenstein 4) --------
 export const BIOMES = [
-  { key: 'kristallhoehle', name: 'Kristallhöhle', sky: ['#1b1030', '#0a0618'], rock: '#2c1c4a', glow: '#7d5cff' },
-  { key: 'pilzwald',       name: 'Pilzwald',      sky: ['#0f2418', '#050f0a'], rock: '#1d4030', glow: '#4cff9d' },
-  { key: 'lavaschmiede',   name: 'Lavaschmiede',  sky: ['#2e0e08', '#140503'], rock: '#4a1a10', glow: '#ff6a2a' },
-  { key: 'eisdom',         name: 'Eisdom',        sky: ['#0d2338', '#040d16'], rock: '#1b4260', glow: '#7fd8ff' },
-  { key: 'wolkenzitadelle',name: 'Wolkenzitadelle',sky: ['#221a3a', '#0b0818'], rock: '#3a3060', glow: '#ffd06a' },
+  { key: 'kristallhoehle', name: 'Kristallhöhle', sky: ['#1b1030', '#0a0618'], rock: '#2c1c4a', glow: '#7d5cff', root: 110.00, wave: 'triangle' },
+  { key: 'pilzwald',       name: 'Pilzwald',      sky: ['#0f2418', '#050f0a'], rock: '#1d4030', glow: '#4cff9d', root: 98.00,  wave: 'sine' },
+  { key: 'lavaschmiede',   name: 'Lavaschmiede',  sky: ['#2e0e08', '#140503'], rock: '#4a1a10', glow: '#ff6a2a', root: 82.41,  wave: 'sawtooth' },
+  { key: 'eisdom',         name: 'Eisdom',        sky: ['#0d2338', '#040d16'], rock: '#1b4260', glow: '#7fd8ff', root: 130.81, wave: 'triangle' },
+  { key: 'wolkenzitadelle',name: 'Wolkenzitadelle',sky: ['#221a3a', '#0b0818'], rock: '#3a3060', glow: '#ffd06a', root: 146.83, wave: 'sine' },
 ];

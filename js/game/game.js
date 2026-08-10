@@ -1,20 +1,20 @@
 /**
  * Spielablauf: Zustand, Regeln, Eingabe-Semantik.
  *
- * Meilenstein 1 + Steuerung/Vorschau aus Meilenstein 2.
- * Effekte (Partikel, Screenshake, Hitstop) und Audio folgen in Meilenstein 3;
- * die Einhängepunkte dafür sind unten mit TODO markiert.
+ * Meilensteine 1 bis 3: Kern, Steuerung mit Vorschau, sowie Juice und Audio.
  */
 import {
   VH, SHOOTER_X, SHOOTER_Y, SHOT_SPEED, CANCEL_ZONE_Y, TAP_MS, TAP_PX,
   MISS_LIMIT, ROW_PUSH_MS, SCORE_POP, SCORE_DROP_STEP, COMBO_MULT, RESTART_MS,
-  ROW_HEIGHT, FAIL_Y,
+  ROW_HEIGHT, FAIL_Y, COMBO_LAYER_AT,
 } from './config.js';
 import { makeStone } from './grid.js';
 import { Shooter } from './shooter.js';
 import { traceShot, pointAtDistance, FallingStones } from './physics.js';
 import { findCluster, isMatch, findFloating } from './match.js';
 import { buildGrid, levelAt, biomeOf, mulberry32, hashString } from './levels.js';
+import { Juice } from '../fx/juice.js';
+import { AudioEngine } from '../core/audio.js';
 import { Hud } from '../ui/hud.js';
 
 /** @typedef {'ready'|'flying'|'pushing'|'won'|'lost'} State */
@@ -31,7 +31,18 @@ export class Game {
 
     this.rng = Math.random;
     this.shooter = new Shooter(() => this.rng());
-    this.falling = new FallingStones(() => this.rng());
+
+    /** Wird von main.js gesetzt; nötig fürs Hitstop. */
+    this.loop = null;
+    this.audio = new AudioEngine();
+    this.juice = new Juice(
+      () => this.rng(),
+      (sec, scale) => this.loop && this.loop.hitstop(sec, scale),
+    );
+    this.falling = new FallingStones(
+      () => this.rng(),
+      (x, y, color) => this.juice.hoardSplash(x, y, color),
+    );
 
     this.levelIndex = 0;
     this.score = 0;
@@ -54,6 +65,8 @@ export class Game {
 
     this.aimCancel = false;
     this.downOnShooter = false;
+    this.downOnMute = false;
+    this.recoil = 0;          // Rückstoß der Schleuder, 1 -> 0
 
     this.loadLevel(0);
   }
@@ -64,6 +77,7 @@ export class Game {
     this.levelIndex = index;
     this.level = levelAt(this.data, index);
     this.biome = biomeOf(this.level);
+    this.audio.setBiome(this.biome);
     this.scoreAtLevelStart = this.score;
     this.buildFromLevel();
   }
@@ -80,6 +94,8 @@ export class Game {
     this.grid.pushAnim = 0;
     this.gridVersion++;
     this.falling.clear();
+    this.juice.reset();
+    this.audio.setComboLayer(false);
     this.projectile = null;
     this.comboStreak = 0;
     this.missStreak = 0;
@@ -142,7 +158,10 @@ export class Game {
 
     switch (e.type) {
       case 'down':
+        // Browser lassen Audio erst nach einer Nutzergeste zu.
+        this.audio.unlock();
         this.downOnShooter = Hud.isOnShooter(e.x, e.y);
+        this.downOnMute = Hud.isOnMute(e.x, e.y);
         this.aimCancel = false;
         this.shooter.beginAim();
         break;
@@ -156,6 +175,14 @@ export class Game {
       case 'up': {
         this.shooter.endAim();
         const isTap = e.duration < TAP_MS && e.maxMove < TAP_PX;
+
+        // Stummschalter — muss vor dem Tipp-Zielen geprüft werden, er liegt
+        // in der oberen Bildschirmhälfte.
+        if (isTap && this.downOnMute && Hud.isOnMute(e.x, e.y)) {
+          this.shooter.angle = this.shooter.frozenAngle;
+          this.audio.toggleMuted();
+          break;
+        }
 
         // Tippen auf die Schleuder tauscht die Warteschlange.
         if (isTap && this.downOnShooter) {
@@ -202,8 +229,9 @@ export class Game {
 
     this.projectile = { trace, dist: 0, stone, x: SHOOTER_X, y: SHOOTER_Y };
     this.state = 'flying';
+    this.recoil = 1;
     this.invalidateTrace();
-    // TODO(M3): Schussgeräusch + Rückstoß der Schleuder.
+    this.audio.shoot();
     return true;
   }
 
@@ -226,10 +254,17 @@ export class Game {
 
     const cluster = findCluster(grid, row, col);
     if (isMatch(cluster)) {
-      for (const [r, c] of cluster) {
+      // Von der Einschlagstelle nach außen, damit Bild und Tonleiter in
+      // derselben Reihenfolge laufen wie der Blick des Spielers.
+      const cx = grid.cellX(row, col), cy = grid.cellY(row);
+      cluster.sort((a, b) => dist2(grid, a, cx, cy) - dist2(grid, b, cx, cy));
+
+      cluster.forEach(([r, c], i) => {
+        const s = grid.get(r, c);
+        this.juice.pop(grid.cellX(r, c), grid.drawY(r), s.color);
+        this.audio.pop(i);
         grid.remove(r, c);
-        // TODO(M3): Platz-Partikel + Squash-Stretch + Tonleiterstufe.
-      }
+      });
       popped = cluster.length;
       gained += popped * SCORE_POP;
 
@@ -242,7 +277,14 @@ export class Game {
         gained += SCORE_DROP_STEP * (i + 1);   // n-ter Stein: 20 * n
       });
       dropped = loose.length;
-      // TODO(M3): Hitstop ab 6 Steinen, Weißblitz, Funkenregen, Glissando.
+
+      this.juice.impact(popped + dropped);
+      if (dropped > 0) {
+        this.juice.drop(dropped);
+        this.audio.drop(dropped);
+      }
+    } else {
+      this.audio.stick();
     }
 
     const removed = popped + dropped;
@@ -254,6 +296,8 @@ export class Game {
       this.comboStreak = 0;
       this.missStreak++;
     }
+    // Ab Kombo 3 kommt eine zusätzliche Instrumentenspur dazu.
+    this.audio.setComboLayer(this.comboStreak >= COMBO_LAYER_AT);
 
     grid.normalize();
     this.gridVersion++;
@@ -263,6 +307,7 @@ export class Game {
     if (grid.isEmpty()) {
       this.state = 'won';
       this.stateTimer = 1.1;
+      this.audio.win();
       return;
     }
 
@@ -284,13 +329,16 @@ export class Game {
     this.invalidateTrace();
     this.state = 'pushing';
     this.stateTimer = ROW_PUSH_MS / 1000;
-    // TODO(M3): Rumpeln (Shake + tiefer Impuls).
+    this.juice.shake.add(7);          // Rumpeln
+    this.audio.rumble();
   }
 
   checkFail() {
     if (this.grid.crossedFailLine()) {
       this.state = 'lost';
       this.stateTimer = RESTART_MS / 1000;
+      this.juice.shake.add(12);
+      this.audio.fail();
       return true;
     }
     return false;
@@ -302,7 +350,9 @@ export class Game {
     this.time += dt;
     this.shooter.update(dt);
     this.falling.update(dt);
+    this.juice.update(dt);
     this.hud.update(dt, this.score);
+    if (this.recoil > 0) this.recoil = Math.max(0, this.recoil - dt * 7);
 
     if (this.grid.pushAnim > 0) {
       this.grid.pushAnim = Math.max(0, this.grid.pushAnim - dt / (ROW_PUSH_MS / 1000));
@@ -346,7 +396,7 @@ export class Game {
     const r = this.r;
     const grid = this.grid;
 
-    r.begin();
+    r.begin(this.juice.shake);
     r.drawBackground(this.biome);
 
     // Feld
@@ -371,9 +421,15 @@ export class Game {
       r.drawStone(f.color, f.x, f.y, { rot: f.rot });
     }
 
+    r.drawPops(this.juice);
+    r.drawParticles(this.juice.particles);
+
     const glut = this.state === 'ready' ? 0.28 + 0.16 * Math.sin(this.time * 4) : 0;
-    r.drawDragon(this.shooter.angle, glut);
+    r.drawDragon(this.shooter.angle, glut, this.recoil);
     this.hud.draw(this);
+
+    // Weißblitz beim Absturz, 15 % Deckkraft
+    if (this.juice.flashAlpha > 0) r.overlay(`rgba(255,255,255,${this.juice.flashAlpha})`);
 
     if (this.state === 'won') {
       const a = Math.min(1, this.stateTimer * 3);
@@ -393,4 +449,11 @@ export class Game {
     const near = Math.max(0, 1 - dist / (ROW_HEIGHT * 3));
     return near * (0.5 + 0.5 * Math.sin(this.time * 6));
   }
+}
+
+/** Quadratischer Abstand eines Feldes zu einem Punkt — nur zum Sortieren. */
+function dist2(grid, [r, c], x, y) {
+  const dx = grid.cellX(r, c) - x;
+  const dy = grid.cellY(r) - y;
+  return dx * dx + dy * dy;
 }
