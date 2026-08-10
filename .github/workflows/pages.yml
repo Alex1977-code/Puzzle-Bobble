@@ -1,0 +1,57 @@
+# Veröffentlicht Drachenfunke auf GitHub Pages.
+#
+# Das Spiel ist bereits eine statische Seite ohne Build-Step — der Workflow
+# kopiert nur die Dateien zusammen, die zur Laufzeit gebraucht werden, und
+# lädt sie hoch. `enablement: true` schaltet Pages beim ersten Lauf selbst
+# ein, damit niemand vorher in die Repository-Einstellungen muss.
+
+name: Pages
+
+on:
+  push:
+    branches:
+      - claude/new-session-k0b2gl
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Läuft eine Veröffentlichung bereits, wird sie zu Ende gebracht statt abgebrochen.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Auschecken
+        uses: actions/checkout@v4
+
+      - name: Pages einrichten
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      - name: Seite zusammenstellen
+        run: |
+          mkdir -p _site
+          cp index.html _site/
+          cp -r css js data _site/
+          # Ohne .nojekyll würde Jekyll die Seite anfassen; hier gibt es nichts zu bauen.
+          touch _site/.nojekyll
+
+      - name: Hochladen
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - name: Veröffentlichen
+        id: deployment
+        uses: actions/deploy-pages@v4

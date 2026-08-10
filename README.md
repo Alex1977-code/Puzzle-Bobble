@@ -7,7 +7,15 @@ HTML5, Canvas 2D, Vanilla JS (ES-Module). Kein Build-Step, keine externen
 Bibliotheken, keine Bild- oder Sounddateien — alle Grafiken entstehen
 prozedural im Code.
 
-## Starten
+## Spielen
+
+Im Browser: **https://alex1977-code.github.io/Puzzle-Bobble/**
+
+Der Workflow `.github/workflows/pages.yml` veröffentlicht bei jedem Push auf
+den Entwicklungsbranch. Es gibt keinen Build-Step — die Dateien werden nur
+kopiert.
+
+## Lokal starten
 
 ES-Module brauchen `http://`, ein Doppelklick auf `index.html` genügt nicht.
 Irgendein statischer Server tut es:
