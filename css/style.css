@@ -1,0 +1,46 @@
+/* Drachenfunke — Letterbox-Rahmen. Alles Weitere wird auf dem Canvas gezeichnet. */
+
+:root {
+  --letterbox: #07050f;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--letterbox);
+  overscroll-behavior: none;
+}
+
+body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Kein Text-Auswahl-/Callout-Verhalten beim Ziehen auf dem Handy. */
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color: #cfc6e8;
+}
+
+#game {
+  display: block;
+  /* Der Canvas füllt das Fenster; die Letterbox entsteht durch die
+     Transformation im Renderer, nicht durch CSS-Ränder. */
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+  image-rendering: auto;
+}
+
+.fallback {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 18px;
+}
