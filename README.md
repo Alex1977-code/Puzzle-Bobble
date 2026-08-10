@@ -15,6 +15,14 @@ Der Workflow `.github/workflows/pages.yml` veröffentlicht bei jedem Push auf
 den Entwicklungsbranch. Es gibt keinen Build-Step — die Dateien werden nur
 kopiert.
 
+**Einmalig nötig:** unter *Settings → Pages → Build and deployment* die
+Quelle auf **GitHub Actions** stellen. Ein Workflow-Token darf eine
+Pages-Site nicht selbst anlegen, das lässt die GitHub-API nicht zu.
+
+Alternativ ohne Workflow: dort *Deploy from a branch* wählen, Branch
+`claude/new-session-k0b2gl`, Ordner `/ (root)`. Das Repository-Wurzel-
+verzeichnis ist bereits die fertige Seite; `.nojekyll` liegt dafür bei.
+
 ## Lokal starten
 
 ES-Module brauchen `http://`, ein Doppelklick auf `index.html` genügt nicht.

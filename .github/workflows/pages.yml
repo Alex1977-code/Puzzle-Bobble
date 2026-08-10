@@ -2,8 +2,12 @@
 #
 # Das Spiel ist bereits eine statische Seite ohne Build-Step — der Workflow
 # kopiert nur die Dateien zusammen, die zur Laufzeit gebraucht werden, und
-# lädt sie hoch. `enablement: true` schaltet Pages beim ersten Lauf selbst
-# ein, damit niemand vorher in die Repository-Einstellungen muss.
+# lädt sie hoch.
+#
+# EINMALIG VORHER NÖTIG: Settings -> Pages -> Build and deployment ->
+# Source auf "GitHub Actions" stellen. Der Workflow-Token darf eine
+# Pages-Site nicht selbst anlegen (die API antwortet mit "Resource not
+# accessible by integration"), das geht nur über die Einstellungen.
 
 name: Pages
 
@@ -36,8 +40,6 @@ jobs:
 
       - name: Pages einrichten
         uses: actions/configure-pages@v5
-        with:
-          enablement: true
 
       - name: Seite zusammenstellen
         run: |
