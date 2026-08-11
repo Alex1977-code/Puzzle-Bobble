@@ -436,9 +436,10 @@ export class Game {
       r.begin();
       drawStoryPanel(r, this.storyIndex, this.storyT);
       if (this.storyT >= 1) {
+        // Unter den Tafelzähler, den story.js selbst bei y = 1244 zeichnet.
         const puls = 0.55 + 0.45 * Math.sin(this.time * 3);
         r.text(this.storyIndex === STORY_PANELS.length - 1 ? 'TIPPEN ZUM SPIELEN' : 'TIPPEN',
-          360, 1244, { size: 15, color: '#c9b8ff', align: 'center', weight: 700, alpha: puls });
+          360, 1270, { size: 13, color: '#9a8cc4', align: 'center', weight: 700, alpha: puls });
       }
       r.end();
       return;
