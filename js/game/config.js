@@ -32,7 +32,18 @@ export const MAX_SUBSTEP = 4;              // px je Kollisions-Substep
 export const COLLIDE_DIST = R * 1.9;       // Trefferabstand Mittelpunkt-zu-Mittelpunkt
 
 // --- Steuerung ---------------------------------------------------------------
+// Grundempfindlichkeit laut Spezifikation. Sie gilt für zügige Bewegungen;
+// langsames Ziehen wird zusätzlich untersetzt, siehe AIM_FINE_GAIN.
 export const AIM_SENSITIVITY = 0.18;       // Grad je gezogenem px
+// Feinzielen: bei langsamer Fingerbewegung greift nur dieser Anteil der
+// Empfindlichkeit. Zwischen den beiden Geschwindigkeiten wird weich geblendet.
+export const AIM_FINE_GAIN = 0.42;
+export const AIM_SLOW_SPEED = 220;         // px/s, darunter voll untersetzt
+export const AIM_FAST_SPEED = 1100;        // px/s, darüber volle Empfindlichkeit
+// Unterhalb der Tipp-Schwelle bewegt sich das Ziel gar nicht.
+export const AIM_DEADZONE = 10;            // px
+// Zeitkonstante der Winkelglättung — nimmt dem Finger das Zittern.
+export const AIM_SMOOTH_TAU = 0.04;        // s
 export const TAP_MS = 150;
 export const TAP_PX = 10;
 export const CANCEL_ZONE_Y = VH * 0.85;    // untere 15 % brechen den Schuss ab

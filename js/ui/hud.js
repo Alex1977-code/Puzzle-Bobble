@@ -3,7 +3,7 @@
  * Alles unterhalb der Fail-Linie bzw. in der Deckenleiste — nie über dem Feld.
  */
 import {
-  VW, MISS_LIMIT, CEILING_Y, SHOOTER_X, SHOOTER_Y, COMBO_MULT,
+  VW, VH, MISS_LIMIT, CEILING_Y, SHOOTER_X, SHOOTER_Y, COMBO_MULT, CANCEL_ZONE_Y,
 } from '../game/config.js';
 
 const QUEUE_X = SHOOTER_X + 264;   // rechts neben dem Drachen
@@ -91,6 +91,29 @@ export class Hud {
     }
 
     this.drawMute(game.audio.muted);
+
+    // Abbruchzone sichtbar machen, solange der Finger darin liegt. Ohne diese
+    // Rückmeldung wirkt ein abgebrochener Schuss wie eine verschluckte Eingabe.
+    if (game.aimCancel) {
+      const ctx = r.ctx;
+      ctx.save();
+      const wash = ctx.createLinearGradient(0, CANCEL_ZONE_Y, 0, VH);
+      wash.addColorStop(0, 'rgba(255,70,90,0)');
+      wash.addColorStop(1, 'rgba(255,70,90,0.32)');
+      ctx.fillStyle = wash;
+      ctx.fillRect(0, CANCEL_ZONE_Y, VW, VH - CANCEL_ZONE_Y);
+      ctx.strokeStyle = 'rgba(255,150,160,0.75)';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([12, 10]);
+      ctx.beginPath();
+      ctx.moveTo(0, CANCEL_ZONE_Y);
+      ctx.lineTo(VW, CANCEL_ZONE_Y);
+      ctx.stroke();
+      ctx.restore();
+      r.text('LOSLASSEN BRICHT AB', VW / 2, CANCEL_ZONE_Y + 36, {
+        size: 20, color: '#ffd6dc', align: 'center', weight: 700,
+      });
+    }
 
     // Tausch-Hinweis
     if (s.swapFlash > 0) {

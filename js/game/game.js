@@ -167,8 +167,9 @@ export class Game {
         break;
 
       case 'move':
-        // Ziehen an beliebiger Stelle: Winkel = eingefroren + dx * 0,18°/px.
-        this.shooter.dragTo(e.dx);
+        // Ziehen an beliebiger Stelle. dt bestimmt die Fingergeschwindigkeit
+        // und damit, wie fein untersetzt wird.
+        this.shooter.dragTo(e.dx, e.dt);
         this.aimCancel = e.y > CANCEL_ZONE_Y;
         break;
 
@@ -179,14 +180,14 @@ export class Game {
         // Stummschalter — muss vor dem Tipp-Zielen geprüft werden, er liegt
         // in der oberen Bildschirmhälfte.
         if (isTap && this.downOnMute && Hud.isOnMute(e.x, e.y)) {
-          this.shooter.angle = this.shooter.frozenAngle;
+          this.shooter.abortAim();
           this.audio.toggleMuted();
           break;
         }
 
         // Tippen auf die Schleuder tauscht die Warteschlange.
         if (isTap && this.downOnShooter) {
-          this.shooter.angle = this.shooter.frozenAngle;
+          this.shooter.abortAim();
           this.shooter.swap();
           this.invalidateTrace();
           break;
@@ -199,7 +200,7 @@ export class Game {
         }
         // Loslassen in den unteren 15 %: Schuss abbrechen.
         if (e.y > CANCEL_ZONE_Y) {
-          this.shooter.angle = this.shooter.frozenAngle;
+          this.shooter.abortAim();
           this.aimCancel = false;
           break;
         }
@@ -208,8 +209,7 @@ export class Game {
       }
 
       case 'cancel':
-        this.shooter.endAim();
-        this.shooter.angle = this.shooter.frozenAngle;
+        this.shooter.abortAim();
         this.aimCancel = false;
         break;
     }

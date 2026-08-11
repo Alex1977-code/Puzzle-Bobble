@@ -19,6 +19,7 @@ export class Input {
     this.x = 0; this.y = 0;
     this.dx = 0; this.dy = 0;
     this.maxMove = 0;
+    this.lastEventAt = 0;
 
     /** @type {(e:{type:string,x:number,y:number,dx:number,dy:number,duration:number,maxMove:number})=>void} */
     this.onEvent = () => {};
@@ -37,13 +38,19 @@ export class Input {
   }
 
   _emit(type) {
+    const now = performance.now();
+    // Abstand zum vorherigen Ereignis derselben Geste. Zeigerereignisse kommen
+    // unregelmäßig und werden teils zusammengefasst, deshalb begrenzt.
+    const dt = Math.min(Math.max(now - this.lastEventAt, 4), 64);
+    this.lastEventAt = now;
     this.onEvent({
       type,
       x: this.x,
       y: this.y,
       dx: this.dx,
       dy: this.dy,
-      duration: performance.now() - this.startTime,
+      dt,
+      duration: now - this.startTime,
       maxMove: this.maxMove,
     });
   }
@@ -59,6 +66,7 @@ export class Input {
     this.dx = this.dy = 0;
     this.maxMove = 0;
     this.startTime = performance.now();
+    this.lastEventAt = this.startTime;
     if (this.canvas.setPointerCapture) {
       try { this.canvas.setPointerCapture(e.pointerId); } catch { /* egal */ }
     }
