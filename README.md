@@ -44,6 +44,10 @@ python3 -m http.server 8000
 | Tipp auf Drache oder Warteschlange | tauscht aktuellen und nächsten Stein |
 | Tipp auf den Lautsprecher oben rechts | schaltet den Ton stumm (wird gemerkt) |
 
+Beim allerersten Start laufen fünf Storytafeln; Tippen blättert weiter. Danach
+kommen sie nicht wieder. Zum erneuten Ansehen im Browser
+`localStorage.removeItem('drachenfunke.story')` ausführen und neu laden.
+
 Maus funktioniert genauso (Pointer Events).
 
 Ton startet erst nach der ersten Berührung — so verlangen es die
@@ -84,6 +88,23 @@ Autoplay-Regeln der Browser.
 - Warteschlange aus aktuellem und nächstem Stein, Tippen auf den Drachen
   tauscht beide.
 - Fehlschuss-Reihe mit 300-ms-Animation und Rumpeln.
+
+### Grafik und Musik
+
+- **Prozedurale Grafik**: facettierter Kristalldrache, dessen Kopf sich um den
+  Abschusspunkt dreht, sodass der geladene Stein bei jedem Winkel im Maul
+  bleibt. Jedes Biom hat eine eigene Bildsprache statt nur eigener Farben —
+  Kristallzacken und Drusen, Pilzhüte und Sporenlicht, Ambosse und Glutrisse,
+  Eiszapfen und Frostfarne, Wolkenbänke und schwebende Türme. Ein
+  Beruhigungsschleier zwischen Ferne und Vordergrund hält das Spielfeld
+  lesbar. Steine haben einen vereinfachten Brillantschliff; die fünf Symbole
+  liegen darüber und bleiben klar erkennbar.
+- **Fünf Storytafeln** in `js/ui/story.js`, prozedural gezeichnet wie alles
+  andere. Laufen einmal beim ersten Start.
+- **Musik je Biom** mit eigenem Tempo, eigener Tonart und eigener
+  Instrumentierung, Großform aus mehreren Durchläufen statt kurzem Loop,
+  gemeinsamer Hallraum für Musik und Effekte, und eine Absenkung der Musik bei
+  jedem Effekt, damit die Trefferleiter immer obenauf steht.
 
 ### Meilenstein 3 — Juice und Audio
 
@@ -131,6 +152,7 @@ js/fx/particles.js      Partikel-Pool (typisierte Arrays)
 js/fx/shake.js          Screenshake
 js/fx/juice.js          Regie: Platzen, Absturz, Hitstop, Blitz
 js/ui/hud.js            Punkte, Kombo, Fehlschussanzeige, Ton
+js/ui/story.js          fünf prozedural gezeichnete Storytafeln
 data/levels.json
 ```
 

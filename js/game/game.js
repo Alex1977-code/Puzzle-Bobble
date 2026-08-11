@@ -16,8 +16,12 @@ import { buildGrid, levelAt, biomeOf, mulberry32, hashString } from './levels.js
 import { Juice } from '../fx/juice.js';
 import { AudioEngine } from '../core/audio.js';
 import { Hud } from '../ui/hud.js';
+import { STORY_PANELS, drawStoryPanel } from '../ui/story.js';
 
-/** @typedef {'ready'|'flying'|'pushing'|'won'|'lost'} State */
+const STORY_KEY = 'drachenfunke.story';
+const STORY_FADE = 0.45;   // s je Tafel bis zum Standbild
+
+/** @typedef {'story'|'ready'|'flying'|'pushing'|'won'|'lost'} State */
 
 export class Game {
   /**
@@ -68,7 +72,16 @@ export class Game {
     this.downOnMute = false;
     this.recoil = 0;          // Rückstoß der Schleuder, 1 -> 0
 
+    this.storyIndex = 0;
+    this.storyT = 0;
+
     this.loadLevel(0);
+
+    // Die Story läuft einmal je Browser, danach nie wieder ungefragt.
+    if (!storySeen()) {
+      this.state = 'story';
+      this.storyT = 0;
+    }
   }
 
   // --- Level ----------------------------------------------------------------
@@ -149,6 +162,11 @@ export class Game {
 
   /** @param {{type:string,x:number,y:number,dx:number,dy:number,duration:number,maxMove:number}} e */
   onPointer(e) {
+    if (this.state === 'story') {
+      if (e.type === 'down') this.audio.unlock();
+      if (e.type === 'up') this.advanceStory();
+      return;
+    }
     if (this.state === 'lost') return;
     if (this.state === 'won') {
       // Antippen überspringt den kurzen Levelbanner.
@@ -212,6 +230,19 @@ export class Game {
         this.shooter.abortAim();
         this.aimCancel = false;
         break;
+    }
+  }
+
+  /** Nächste Storytafel, oder los ins Spiel. */
+  advanceStory() {
+    if (this.storyT < 1) { this.storyT = 1; return; }   // erst zu Ende einblenden
+    this.storyIndex++;
+    this.storyT = 0;
+    if (this.storyIndex >= STORY_PANELS.length) {
+      markStorySeen();
+      this.storyIndex = 0;
+      this.state = 'ready';
+      this.buildFromLevel();
     }
   }
 
@@ -358,6 +389,11 @@ export class Game {
       this.grid.pushAnim = Math.max(0, this.grid.pushAnim - dt / (ROW_PUSH_MS / 1000));
     }
 
+    if (this.state === 'story') {
+      this.storyT = Math.min(1, this.storyT + dt / STORY_FADE);
+      return;
+    }
+
     switch (this.state) {
       case 'flying': {
         const p = this.projectile;
@@ -395,6 +431,18 @@ export class Game {
   render() {
     const r = this.r;
     const grid = this.grid;
+
+    if (this.state === 'story') {
+      r.begin();
+      drawStoryPanel(r, this.storyIndex, this.storyT);
+      if (this.storyT >= 1) {
+        const puls = 0.55 + 0.45 * Math.sin(this.time * 3);
+        r.text(this.storyIndex === STORY_PANELS.length - 1 ? 'TIPPEN ZUM SPIELEN' : 'TIPPEN',
+          360, 1244, { size: 15, color: '#c9b8ff', align: 'center', weight: 700, alpha: puls });
+      }
+      r.end();
+      return;
+    }
 
     r.begin(this.juice.shake);
     r.drawBackground(this.biome);
@@ -456,4 +504,12 @@ function dist2(grid, [r, c], x, y) {
   const dx = grid.cellX(r, c) - x;
   const dy = grid.cellY(r) - y;
   return dx * dx + dy * dy;
+}
+
+function storySeen() {
+  try { return localStorage.getItem(STORY_KEY) === '1'; } catch { return false; }
+}
+
+function markStorySeen() {
+  try { localStorage.setItem(STORY_KEY, '1'); } catch { /* egal */ }
 }
